@@ -7,8 +7,8 @@ import mediapipe as mp
 title = "useless_mirror"
 
 cap = cv2.VideoCapture(1)
-mp_face_detection = mp.solutions.face_mesh
-face_mesh = mp_face_detection.FaceMesh()
+mp_face_mesh = mp.solutions.face_mesh
+face_mesh = mp_face_mesh.FaceMesh(max_num_faces=2)
 mp_draw = mp.solutions.drawing_utils
 
 snapshot_key = 76
@@ -18,6 +18,7 @@ fps_key = 74
 snapshot = None
 is_track = False
 show_fps = True
+mode = "O"  # ["TRANSPARENT", "OVERLAY"]
 
 time_gap = 0.2
 prev_time = 0
@@ -29,8 +30,6 @@ while True:
     success, img = cap.read()
     height, width, _ = img.shape
 
-    output_img = img
-
     if is_track:
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         results = face_mesh.process(img_rgb)
@@ -39,7 +38,7 @@ while True:
         if face_landmarks:
             for face_landmark in face_landmarks:
                 face_points = []
-                for i, landmark in enumerate(face_landmark.landmark):
+                for landmark in face_landmark.landmark:
                     x = int(landmark.x * width)
                     y = int(landmark.y * height)
                     face_points.append((x, y))
@@ -48,23 +47,27 @@ while True:
                 hull_point = [face_points[i] for i in hull_index]
                 hull_array = [np.array(hull_point, np.int32).reshape((-1, 1, 2))]
 
-                mask = np.zeros(img.shape, img.dtype)
-                cv2.polylines(mask, hull_array, isClosed=True, color=(255, 255, 255), thickness=boundary)
-                cv2.fillPoly(mask, hull_array, color=(255, 255, 255))
+                if mode.upper() in ["OVERLAY", "O"]:
+                    cv2.polylines(img, hull_array, isClosed=True, color=(0, 0, 255), thickness=boundary)
+                    cv2.fillPoly(img, hull_array, color=(0, 0, 255))
+                elif mode.upper() in ["TRANSPARENT", "T"]:
+                    mask = np.zeros(img.shape, img.dtype)
+                    cv2.polylines(mask, hull_array, isClosed=True, color=(255, 255, 255), thickness=boundary)
+                    cv2.fillPoly(mask, hull_array, color=(255, 255, 255))
 
-                if snapshot is not None:
-                    masking = cv2.bitwise_and(mask, snapshot)
-                    mask_inv = cv2.bitwise_not(mask)
-                    background = cv2.bitwise_and(mask_inv, img)
-                    output_img = cv2.add(masking, background)
+                    if snapshot is not None:
+                        masking = cv2.bitwise_and(mask, snapshot)
+                        mask_inv = cv2.bitwise_not(mask)
+                        background = cv2.bitwise_and(mask_inv, img)
+                        img = cv2.add(masking, background)
 
     if show_fps:
         curr_time = time.time()
         fps = 1 / (curr_time - prev_time)
         prev_time = curr_time
-        cv2.putText(output_img, str(int(fps)), (10, 70), cv2.FONT_HERSHEY_PLAIN, 3, (0, 0, 255), 3)
+        cv2.putText(img, str(int(fps)), (10, 70), cv2.FONT_HERSHEY_PLAIN, 3, (0, 0, 255), 3)
 
-    cv2.imshow(title, output_img)
+    cv2.imshow(title, img)
 
     key_pressed = cv2.waitKey(1)
 
