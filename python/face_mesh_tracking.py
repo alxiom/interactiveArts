@@ -18,13 +18,15 @@ fps_key = 74
 snapshot = None
 is_track = False
 show_fps = True
-mode = "O"  # ["TRANSPARENT", "OVERLAY"]
+mode = "T"  # ["TRANSPARENT", "OVERLAY"]
+frame_count = 0
+speed = 5e-3
 
 time_gap = 0.2
 prev_time = 0
 curr_time = 0
 
-boundary = 50
+boundary = 20
 
 while True:
     success, img = cap.read()
@@ -56,10 +58,15 @@ while True:
                     cv2.fillPoly(mask, hull_array, color=(255, 255, 255))
 
                     if snapshot is not None:
-                        masking = cv2.bitwise_and(mask, snapshot)
-                        mask_inv = cv2.bitwise_not(mask)
-                        background = cv2.bitwise_and(mask_inv, img)
-                        img = cv2.add(masking, background)
+                        patch = cv2.bitwise_and(mask, snapshot)
+                        patch_inverse = cv2.bitwise_not(mask)
+                        background = cv2.bitwise_and(patch_inverse, img)
+                        alpha = min(frame_count * speed, 1.0)
+                        patch_image = cv2.add(patch, background)
+                        img = cv2.addWeighted(patch_image, alpha, img, 1.0 - alpha, 1)
+                        frame_count += 1
+        else:
+            frame_count = 0
 
     if show_fps:
         curr_time = time.time()
